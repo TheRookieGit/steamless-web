@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Steamless</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%2366c0f4'/><path d='M18 40c0-8 6-14 14-14s14 6 14 14' stroke='%23101822' stroke-width='6' fill='none' stroke-linecap='round'/><circle cx='32' cy='22' r='6' fill='%23101822'/></svg>" />
+  <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+  <link rel="stylesheet" href="style.css?v=0.3.26-fda84ac" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo">◐</span>
+      <span>Steamless</span>
+    </div>
+    <div class="search">
+      <input id="search" type="search" placeholder="搜索游戏名、标签、备注…  ( / )" autocomplete="off" />
+    </div>
+    <div class="actions">
+      <button class="btn primary" id="btn-upload" title="上传收藏截图，自动识别游戏 (也可以直接 Ctrl+V 粘贴)">📷 截图收藏</button>
+      <button class="btn" id="btn-add">＋ 手动添加</button>
+      <button class="btn" id="btn-netdisk" data-desktop-only title="贴夸克、百度网盘的分享链接，下载、解压后出现在游戏库里">⬇ 网盘下载</button>
+      <button class="btn" id="btn-scan" title="通知你所有开着 Steamless 的电脑重新扫描">⟳ 扫描所有电脑</button>
+      <button class="btn icon" id="btn-settings" title="设置">⚙</button>
+    </div>
+  </header>
+
+  <div class="sticky-bar" id="sticky-bar">
+  <nav class="toolbar">
+    <div class="tabs" id="tabs">
+      <button data-tab="all" class="active">全部 <b id="count-all">0</b></button>
+      <button data-tab="playing" title="最近 30 天玩过的（Steam 记录 / Steamless 检测到正在运行）">最近在玩 <b id="count-playing">0</b></button>
+      <button data-tab="rated">已品鉴 <b id="count-rated">0</b></button>
+      <button data-tab="downloaded" title="只有安装包（压缩包），还没解压">已下载 <b id="count-downloaded">0</b></button>
+      <button data-tab="installed" title="已解压 / 已安装，可以玩了">已安装 <b id="count-installed">0</b></button>
+      <button data-tab="upcoming">即将发售 <b id="count-upcoming">0</b></button>
+      <button data-tab="wishlist">已收藏 <b id="count-wishlist">0</b></button>
+      <button data-tab="musthave" title="愿望单里最想先下载的（在已收藏的游戏上右键添加，下载后自动移出）">特别想要 <b id="count-musthave">0</b></button>
+    </div>
+    <div class="filters">
+      <select id="filter-source" title="来源">
+        <option value="">所有来源</option>
+        <option value="steam">Steam</option>
+        <option value="local">本地下载</option>
+        <option value="manual">仅收藏</option>
+      </select>
+      <select id="sort" title="排序">
+        <option value="recent">最近添加</option>
+        <option value="favorited">收藏日期</option>
+        <option value="musthave">加入特别想要</option>
+        <option value="downloaded">下载日期</option>
+        <option value="installed">安装日期</option>
+        <option value="release">发售日期</option>
+        <option value="played">最近游玩</option>
+        <option value="size">占用空间</option>
+        <option value="name">名称</option>
+      </select>
+      <button class="btn icon" id="btn-view" title="切换网格 / 列表">▦</button>
+    </div>
+  </nav>
+
+  <div id="verdict-filter" class="subtabs hidden">
+    <button data-verdict="great" class="active">👍 好玩 <b id="count-great">0</b></button>
+    <button data-verdict="ok">👌 尚可 <b id="count-ok">0</b></button>
+    <button data-verdict="waste">👎 浪费时间 <b id="count-waste">0</b></button>
+  </div>
+  </div>
+
+  <div id="folder-alert" class="folder-alert hidden" data-desktop-only></div>
+  <main id="grid" class="grid"></main>
+  <div id="empty" class="empty hidden"></div>
+
+  <!-- 详情抽屉 -->
+  <aside id="drawer" class="drawer" aria-hidden="true">
+    <div class="drawer-body" id="drawer-body"></div>
+  </aside>
+  <div id="drawer-mask" class="mask"></div>
+
+  <!-- 截图识别 -->
+  <dialog id="dlg-upload" class="dialog wide">
+    <form method="dialog" class="dialog-head">
+      <h2>截图收藏</h2>
+      <button class="btn icon" value="close">✕</button>
+    </form>
+    <div class="dialog-content">
+      <label class="dropzone" id="dropzone">
+        <input type="file" id="file-input" accept="image/png,image/jpeg,image/webp,image/gif" multiple hidden />
+        <div class="dz-hint">
+          <div class="dz-icon">🖼️</div>
+          <div>拖入截图、<b>Ctrl+V</b> 粘贴，或点击选择（最多 10 张）</div>
+          <small>商店页、愿望单、宣传图、视频截图都可以，一张图里有多款游戏也能识别</small>
+        </div>
+        <div class="thumbs" id="thumbs"></div>
+      </label>
+      <div class="row end">
+        <button class="btn" id="btn-clear-shots" type="button">清空</button>
+        <button class="btn primary" id="btn-recognize" type="button" disabled>开始识别</button>
+      </div>
+      <div id="recognize-results"></div>
+    </div>
+  </dialog>
+
+  <!-- 手动添加 -->
+  <dialog id="dlg-add" class="dialog">
+    <form method="dialog" class="dialog-head">
+      <h2>手动添加</h2>
+      <button class="btn icon" value="close">✕</button>
+    </form>
+    <form class="dialog-content form" id="form-add">
+      <label>搜索 Steam
+        <input name="q" id="add-q" placeholder="输入游戏名，回车搜索" autocomplete="off" />
+      </label>
+      <div id="add-results" class="pick-list"></div>
+      <label>游戏名 <input name="name" required /></label>
+      <label>英文名 <input name="nameEn" /></label>
+      <label>Steam AppID <input name="steamAppId" inputmode="numeric" placeholder="可选" /></label>
+      <div class="row">
+        <label class="grow">状态
+          <select name="status"><option value="wishlist">已收藏</option><option value="downloaded">已下载（有安装包）</option><option value="installed">已安装</option></select>
+        </label>
+        <label class="grow">收藏日期 <input type="date" name="favoritedAt" /></label>
+      </div>
+      <div class="row end">
+        <button class="btn primary" type="submit">添加</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- 网盘下载 -->
+  <dialog id="dlg-netdisk" class="dialog wide">
+    <form method="dialog" class="dialog-head">
+      <h2>网盘下载</h2>
+      <button class="btn icon" value="close">✕</button>
+    </form>
+    <div class="dialog-content" id="netdisk-body">
+      <div class="section">
+        <h3>网盘账号</h3>
+        <div class="hint">夸克、百度网盘的登录和书屿、Plexus、心愿中枢共用：在任意一处扫码登录，其他地方都不用再扫；在任意一处退出，所有地方一起退出。登录只保存在这台电脑上。</div>
+        <div id="nd-accounts"><div class="muted">读取中…</div></div>
+      </div>
+      <div class="section">
+        <h3>贴分享链接</h3>
+        <textarea id="nd-text" rows="3" placeholder="夸克或百度网盘的分享链接，提取码写在链接后面就行；一次可以贴好几个"></textarea>
+        <div class="row"><span class="hint grow" id="nd-where"></span><button class="btn primary" id="nd-read">读取</button></div>
+        <div id="nd-shares"></div>
+      </div>
+      <div class="section">
+        <h3>下载任务</h3>
+        <div id="nd-batches"><div class="muted">还没有下载任务</div></div>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- 设置 -->
+  <dialog id="dlg-settings" class="dialog wide">
+    <form method="dialog" class="dialog-head">
+      <h2>设置</h2>
+      <button class="btn icon" value="close">✕</button>
+    </form>
+    <div class="dialog-content" id="settings-body"></div>
+  </dialog>
+
+  <!-- 登录 / 注册 -->
+  <div id="auth" class="auth hidden">
+    <form id="auth-form" class="auth-card" autocomplete="on">
+      <div class="brand auth-brand"><span class="logo">◐</span><span>Steamless</span></div>
+      <p class="muted" id="auth-sub">登录后，你的收藏、自选封面和设置会同步到所有电脑。</p>
+      <label class="field">邮箱 <input name="email" type="email" autocomplete="email" required /></label>
+      <label class="field">密码 <input name="password" type="password" autocomplete="current-password" minlength="6" required /></label>
+      <label class="remember-row" id="auth-remember-row"><input type="checkbox" name="remember" checked /> 记住我（保存邮箱和密码，下次自动填好）</label>
+      <div id="auth-error" class="auth-error hidden"></div>
+      <button class="btn primary" type="submit" id="auth-submit">登录</button>
+      <div class="row" style="justify-content:center">
+        <span class="muted" id="auth-switch-text">还没有账号？</span>
+        <button class="btn ghost small" type="button" id="auth-switch">注册</button>
+      </div>
+    </form>
+  </div>
+
+  <div id="toasts" class="toasts"></div>
+
+  <script type="module" src="adapter.js?v=0.3.26-fda84ac"></script>
+  <script type="module" src="app.js?v=0.3.26-fda84ac"></script>
+</body>
+</html>
